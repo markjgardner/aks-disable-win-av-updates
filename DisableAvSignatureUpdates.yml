@@ -31,8 +31,8 @@ spec:
             hostProcess: true
             runAsUserName: "NT AUTHORITY\\SYSTEM"
       containers:
-      - name: pause
-        image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+      - name: log-regkeys
+        image: mcr.microsoft.com/windows/nanoserver:ltsc2022
         command:
         - powershell.exe
         args:
