@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: disable-windowsav
+  labels:
+    k8s-app: disable-windowsav
+spec:
+  selector:
+    matchLabels:
+      name: disable-windowsav
+  template:
+    metadata:
+      labels:
+        name: disable-windowsav
+    spec:
+      nodeSelector:
+        kubernetes.azure.com/os-sku: Windows2022
+      hostNetwork: true
+      initContainers:
+      - name: disable-windowsav
+        image: mcr.microsoft.com/windows/servercore:ltsc2022
+        command:
+        - powershell.exe
+        args:
+        - -Command
+        - |
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignatureUpdateInterval /t REG_DWORD /d 0 /f;
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignaturesUpdatesChannel /t REG_SZ /v 'staged' /f;
+        securityContext:
+          windowsOptions:
+            hostProcess: true
+            runAsUserName: "NT AUTHORITY\\SYSTEM"
+      containers:
+      - name: pause
+        image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+        command:
+        - powershell.exe
+        args:
+        - -Command
+        - "while ($true) { start-sleep -s 3600 }"
+        securityContext:
+          windowsOptions:
+            hostProcess: true
+            runAsUserName: "NT AUTHORITY\\SYSTEM"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: windowsav-logger
+spec:
+  schedule: "*/10 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            kubernetes.azure.com/os-sku: Windows2022
+          hostNetwork: true
+          containers:
+          - name: windowsav-logger
+            image: mcr.microsoft.com/windows/servercore:ltsc2022
+            command:
+            - powershell.exe
+            args:
+            - -Command
+            - reg query 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates'
+            securityContext:
+              windowsOptions:
+                hostProcess: true
+                runAsUserName: "NT AUTHORITY\\SYSTEM"
+          restartPolicy: OnFailure
