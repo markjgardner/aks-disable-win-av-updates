@@ -18,7 +18,7 @@ spec:
       hostNetwork: true
       initContainers:
       - name: disable-windowsav
-        image: mcr.microsoft.com/windows/servercore:ltsc2022
+        image: mcr.microsoft.com/windows/nanoserver:ltsc2022
         command:
         - powershell.exe
         args:
