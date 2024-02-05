@@ -25,7 +25,7 @@ spec:
         - -Command
         - |
           reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignatureUpdateInterval /t REG_DWORD /d 0 /f;
-          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignaturesUpdatesChannel /t REG_SZ /d 'staged' /f;
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v FallbackOrder /t REG_SZ /d 'FileShares' /f;
         securityContext:
           windowsOptions:
             hostProcess: true
