@@ -1,20 +1,66 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: disable-windowsav
+  name: disable-windowsav-1
   labels:
     k8s-app: disable-windowsav
 spec:
   selector:
     matchLabels:
-      name: disable-windowsav
+      name: disable-windowsav-1
   template:
     metadata:
       labels:
-        name: disable-windowsav
+        name: disable-windowsav-1
     spec:
       nodeSelector:
-        kubernetes.azure.com/os-sku: Windows2022
+        kubernetes.io/hostname: akswin22000001
+      hostNetwork: true
+      initContainers:
+      - name: disable-windowsav
+        image: mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
+        command:
+        - powershell.exe
+        args:
+        - -Command
+        - |
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v FallbackOrder /t REG_SZ /d 'FileShares' /f;
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignatureUpdateInterval /t REG_DWORD /d 1 /f;
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignaturesUpdatesChannel /t REG_SZ /d 'beta' /f;
+        securityContext:
+          windowsOptions:
+            hostProcess: true
+            runAsUserName: "NT AUTHORITY\\SYSTEM"
+      containers:
+      - name: log-regkeys
+        image: mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
+        command:
+        - powershell.exe
+        args:
+        - -Command
+        - while ($true) { reg query 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates'; start-sleep -s 600; }
+        securityContext:
+          windowsOptions:
+            hostProcess: true
+            runAsUserName: "NT AUTHORITY\\SYSTEM"
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: disable-windowsav-2
+  labels:
+    k8s-app: disable-windowsav-2
+spec:
+  selector:
+    matchLabels:
+      name: disable-windowsav-2
+  template:
+    metadata:
+      labels:
+        name: disable-windowsav-2
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: akswin22000002
       hostNetwork: true
       initContainers:
       - name: disable-windowsav
@@ -25,7 +71,51 @@ spec:
         - -Command
         - |
           reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignatureUpdateInterval /t REG_DWORD /d 0 /f;
-          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignaturesUpdatesChannel /t REG_SZ /d 'staged' /f;
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignaturesUpdatesChannel /t REG_SZ /d 'beta' /f;
+        securityContext:
+          windowsOptions:
+            hostProcess: true
+            runAsUserName: "NT AUTHORITY\\SYSTEM"
+      containers:
+      - name: log-regkeys
+        image: mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
+        command:
+        - powershell.exe
+        args:
+        - -Command
+        - while ($true) { reg query 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates'; start-sleep -s 600; }
+        securityContext:
+          windowsOptions:
+            hostProcess: true
+            runAsUserName: "NT AUTHORITY\\SYSTEM"
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: disable-windowsav-3
+  labels:
+    k8s-app: disable-windowsav-3
+spec:
+  selector:
+    matchLabels:
+      name: disable-windowsav-3
+  template:
+    metadata:
+      labels:
+        name: disable-windowsav-3
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: akswin22000003
+      hostNetwork: true
+      initContainers:
+      - name: disable-windowsav
+        image: mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
+        command:
+        - powershell.exe
+        args:
+        - -Command
+        - |
+          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignaturesUpdatesChannel /t REG_SZ /d 'beta' /f;
         securityContext:
           windowsOptions:
             hostProcess: true
