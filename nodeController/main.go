@@ -1,4 +1,4 @@
-// this app will be running in a kubernetes pod and will monitor the status of a running pod. When that pod is marked complete this pod will remove the canary taint and label the node with winops/canary/status=complete.
+// this app will be running in a kubernetes pod and will monitor the status of a running pod. When that pod is marked complete this pod will remove the canary taint and label the node with winops/canary-status=complete.
 
 package main
 
@@ -42,7 +42,7 @@ func main() {
 	waiting := true
 	// get all pods with the name "canary"
 	for waiting {
-		pods, _ := clientset.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{LabelSelector: "winops/canary/status=inprogress", FieldSelector: "spec.nodeName=" + nodeName})
+		pods, _ := clientset.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{LabelSelector: "winops/canary-status=inprogress", FieldSelector: "spec.nodeName=" + nodeName})
 
 		if pods == nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: no canary pods are running on this node")
@@ -59,7 +59,7 @@ func main() {
 			// remove the taint and label from the node
 			node, _ := clientset.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 			node.Spec.Taints = removeTaint(node.Spec.Taints, "canary")
-			node.Labels["winops/canary/status"] = "complete"
+			node.Labels["winops/canary-status"] = "complete"
 			clientset.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{})
 			waiting = false
 		}

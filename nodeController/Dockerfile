@@ -1,10 +1,10 @@
-FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
+FROM golang:nanoserver-ltsc2022 as build
 WORKDIR /app
-RUN powershell.exe -Command \
-    wget -Uri https://dl.google.com/go/go1.16.3.windows-amd64.zip -OutFile c:\go.zip ; \
-    Expand-Archive -Path c:\go.zip -DestinationPath c:\ ; \
-    Remove-Item c:\go.zip
-RUN setx path "%path%;c:\go\bin"
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
-RUN go build -o main .
-CMD ["./main"]
+RUN go build -o main.exe .
+
+FROM golang:nanoserver-ltsc2022 as runtime
+COPY --from=build /app/main.exe /app/main.exe
+CMD ["/app/main.exe"]

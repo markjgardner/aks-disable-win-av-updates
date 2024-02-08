@@ -9,8 +9,8 @@ metadata:
   name: node-taint-label
 rules:
 - apiGroups: [""]
-  resources: ["nodes"]
-  verbs: ["taint", "label"]
+  resources: ["nodes", "pods"]
+  verbs: ["taint", "label", "get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -36,4 +36,3 @@ metadata:
   name: canary-sample
 spec:
   serviceAccountName: canary-node-controller
-
