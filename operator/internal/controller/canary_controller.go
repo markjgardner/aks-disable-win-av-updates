@@ -60,24 +60,29 @@ func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	for _, node := range nodes.Items {
 		value, found := node.Labels["winops/canary/status"]
-		if !found || value != "complete" {
-			//taint the node
+		if !found {
+			//taint and label the node
 			taint := corev1.Taint{
 				Key:    "canary",
 				Effect: corev1.TaintEffectNoSchedule,
 			}
 			node.Spec.Taints = append(node.Spec.Taints, taint)
+			label := map[string]string{"winops/canary/status": "inprogress"}
+			node.Labels.Merge(label)
 			r.Client.Update(context.Background(), &node)
 
+			//generate a unique naming suffix for this node
+			suffix := getSuffix()
+
 			//create a pod to disable av signature updates on the node
-			p1 := createAVPod(node, r)
+			p1 := createAVPod(suffix, node, r)
 			log.FromContext(ctx).Info("Pod created", "Pod.Name", p1.Name)
 
 			//use the service account provided in the operator config
 			serviceAccount := ctx.Value("ServiceAccountName").(string)
 
-			//create a pod to remove the taint from the node once the AV update is complete and label the node
-			p2 := createTaintCleanupPod(serviceAccount, node, r)
+			//create a pod to remove the taint from the node once the AV update is complete and label the node complete
+			p2 := createTaintCleanupPod(suffix, serviceAccount, node, r)
 			log.FromContext(ctx).Info("Pod created", "Pod.Name", p2.Name)
 		}
 	}
@@ -85,20 +90,36 @@ func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
+// Generate a random string of length 6
+func getSuffix() string {
+    rand.Seed(time.Now().UnixNano())
+    chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+    length := 6
+    var b []rune
+    for i := 0; i < length; i++ {
+        b = append(b, chars[rand.Intn(len(chars))])
+    }
+    return string(b)
+}
+
 // createPod creates a pod to disable av signature updates on the node
-func createAVPod(node corev1.Node, r *CanaryReconciler) *corev1.Pod {
+func createAVPod(suffix string, node corev1.Node, r *CanaryReconciler) *corev1.Pod {
 	hostProcess := true
 	runAsUserName := "NT AUTHORITY\\SYSTEM"
+	randomstring := 
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "disable-av-signature-updates",
 			Namespace: "default",
 		},
+		Labels: map[string]string{
+			"app": "disable-av-signature-updates",
+		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:    "disable-av-signature-updates",
+					Name:    "disable-av-signature-updates-" + suffix,
 					Image:   "mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0",
 					Command: []string{"powershell"},
 					Args: []string{"reg add 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Defender\\Signature Updates' /v FallbackOrder /t REG_SZ /d 'FileShares' /f;",
@@ -131,10 +152,10 @@ func createAVPod(node corev1.Node, r *CanaryReconciler) *corev1.Pod {
 	return pod
 }
 
-func createTaintCleanupPod(serviceAcount string, node corev1.Node, r *CanaryReconciler) *corev1.Pod {
+func createTaintCleanupPod(suffix string, serviceAcount string, node corev1.Node, r *CanaryReconciler) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "remove-canary-taint",
+			Name:      "remove-canary-taint-" + suffix,
 			Namespace: "default",
 		},
 		Spec: corev1.PodSpec{
