@@ -34,9 +34,9 @@ spec:
           spec:
             description: CanarySpec defines the desired state of Canary
             properties:
-              disableAVSignatureUpdates:
-                description: Flag to tell the operator to run the controller that
-                  disables AV signature updates
+              serviceAccountName:
+                description: The name of the service account to use when tainting
+                  nodes
                 type: boolean
             type: object
           status:

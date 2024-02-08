@@ -28,7 +28,7 @@ type CanarySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Flag to tell the operator to run the controller that disables AV signature updates
+	// The name of the service account to use when tainting nodes
 	ServiceAccountName bool `json:"serviceAccountName,omitempty"`
 }
 

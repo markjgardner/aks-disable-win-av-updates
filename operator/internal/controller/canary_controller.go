@@ -20,11 +20,11 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	nodev1alpha1 "winops/api/v1alpha1"
 )
@@ -49,9 +49,7 @@ type CanaryReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	if err := r.Get(ctx, req.NamespacedName, &node); err != nil {
-		// handle error
-	}
+	_ = log.FromContext(ctx)
 
 	// Find all nodes with the label kubernetes.azure.com/os-sku=Windows2022 and do not have the label winops/canary/status=complete
 	nodes := &corev1.NodeList{}
@@ -71,14 +69,16 @@ func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			node.Spec.Taints = append(node.Spec.Taints, taint)
 			r.Client.Update(context.Background(), &node)
 
-			//create a service account with the ability to remove taints from nodes
-			serviceAcount := createServiceAccount(r)
-
 			//create a pod to disable av signature updates on the node
-			createAVPod(serviceAcount, node, r)
+			p1 := createAVPod(node, r)
+			log.FromContext(ctx).Info("Pod created", "Pod.Name", p1.Name)
 
-			//create a pod to remove the taint from the node once the AV update is complete
-			createTaintCleanupPod(serviceAcount, node, r)
+			//use the service account provided in the operator config
+			serviceAccount := ctx.Value("ServiceAccountName").(string)
+
+			//create a pod to remove the taint from the node once the AV update is complete and label the node
+			p2 := createTaintCleanupPod(serviceAccount, node, r)
+			log.FromContext(ctx).Info("Pod created", "Pod.Name", p2.Name)
 		}
 	}
 
@@ -86,7 +86,10 @@ func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 // createPod creates a pod to disable av signature updates on the node
-func createAVPod(serviceAcount *corev1.ServiceAccount, node corev1.Node, r *CanaryReconciler) *corev1.Pod {
+func createAVPod(node corev1.Node, r *CanaryReconciler) *corev1.Pod {
+	hostProcess := true
+	runAsUserName := "NT AUTHORITY\\SYSTEM"
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "disable-av-signature-updates",
@@ -102,8 +105,8 @@ func createAVPod(serviceAcount *corev1.ServiceAccount, node corev1.Node, r *Cana
 						"reg add 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Defender\\Signature Updates' /v SignatureUpdateInterval /t REG_DWORD /d 0 /f;"},
 					SecurityContext: &corev1.SecurityContext{
 						WindowsOptions: &corev1.WindowsSecurityContextOptions{
-							HostProcess:   true,
-							RunAsUserName: "NT AUTHORITY\\SYSTEM",
+							HostProcess:   &hostProcess,
+							RunAsUserName: &runAsUserName,
 						},
 					},
 				},
@@ -128,14 +131,14 @@ func createAVPod(serviceAcount *corev1.ServiceAccount, node corev1.Node, r *Cana
 	return pod
 }
 
-func createTainCleanupPod(serviceAcount *corev1.ServiceAccount, node corev1.Node, r *CanaryReconciler) *corev1.Pod {
+func createTaintCleanupPod(serviceAcount string, node corev1.Node, r *CanaryReconciler) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "remove-canary-taint",
 			Namespace: "default",
 		},
 		Spec: corev1.PodSpec{
-			ServiceAccountName: serviceAcount.Name,
+			ServiceAccountName: serviceAcount,
 			Containers: []corev1.Container{
 				{
 					Name:  "remove-canary-taint",
@@ -160,63 +163,6 @@ func createTainCleanupPod(serviceAcount *corev1.ServiceAccount, node corev1.Node
 	}
 
 	return pod
-}
-
-// createServiceAccount creates a service account with the ability to remove taints from nodes
-func createServiceAccount(r *CanaryReconciler) *corev1.ServiceAccount {
-	serviceAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "canary-service-account",
-			Namespace: "default",
-		},
-	}
-
-	if err := r.Client.Create(context.Background(), serviceAccount); err != nil {
-		// handle error
-	}
-
-	role := &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "canary-role",
-			Namespace: "default",
-		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{""},
-				Resources: []string{"nodes"},
-				Verbs:     []string{"taint"},
-			},
-		},
-	}
-
-	if err := r.Client.Create(context.Background(), role); err != nil {
-		// handle error
-	}
-
-	roleBinding := &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "canary-role-binding",
-			Namespace: "default",
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      serviceAccount.Name,
-				Namespace: "default",
-			},
-		},
-		RoleRef: rbacv1.RoleRef{
-			Kind:     "Role",
-			Name:     role.Name,
-			APIGroup: "rbac.authorization.k8s.io",
-		},
-	}
-
-	if err := r.Client.Create(context.Background(), roleBinding); err != nil {
-		// handle error
-	}
-
-	return serviceAccount
 }
 
 // SetupWithManager sets up the controller with the Manager.
