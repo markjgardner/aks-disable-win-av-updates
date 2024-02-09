@@ -26,18 +26,19 @@ func removeTaint(taints []corev1.Taint, taintToRemove string) []corev1.Taint {
 func main() {
 	config, err := rest.InClusterConfig()
 	if err != nil || config == nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: not running in a kubernetes cluster")
+		fmt.Fprintf(os.Stderr, "Error: not running in a kubernetes cluster")
 		// use local kubeconfig for debugging
 		kubeconfig := os.Getenv("KUBECONFIG")
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: failed to load kubeconfig")
+		fmt.Fprintf(os.Stderr, "Error: failed to load kubeconfig")
 	}
 
 	//Get the current nodename
 	nodeName := os.Getenv("NODE_NAME")
+	fmt.Fprintf(os.Stdout, "Node Name: %s\n", nodeName)
 
 	// get all pods with the label app=disable-av-signature-updates on the target node
 	poll := true
@@ -69,7 +70,8 @@ func main() {
 				}
 			}
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "Error: more than one canary pod found")
+			_, _ = fmt.Fprintf(os.Stderr, "Error: pod count not exactly 1 -- %d\n", len(pods.Items))
+			time.Sleep(10 * time.Second)
 		}
 	}
 

@@ -118,7 +118,7 @@ spec:
         - name: CONTROLLER_SERVICE_ACCOUNT
           value: canary-node-controller
         - name: CONTROLLER_IMAGE
-          value: ghcr.io/markjgardner/aks-disable-win-av-updates/nodecontroller:0.2.92
+          value: ghcr.io/markjgardner/aks-disable-win-av-updates/nodecontroller:0.2.95
         resources:
           requests:
             cpu: 150m
@@ -126,3 +126,5 @@ spec:
           limits:
             cpu: 500m
             memory: 250Mi
+      nodeSelector:
+        kubernetes.io/os: linux
