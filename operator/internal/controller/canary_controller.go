@@ -51,7 +51,7 @@ type CanaryReconciler struct {
 func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// Find all nodes with the label kubernetes.azure.com/os-sku=Windows2022 and do not have the label winops/canary/status=complete
+	// Find all nodes with the label kubernetes.azure.com/os-sku=Windows2022 and do not have the label winops/canary-status=complete
 	nodes := &corev1.NodeList{}
 	err := r.Client.List(context.Background(), nodes, client.MatchingLabels{"kubernetes.azure.com/os-sku": "Windows2022"})
 	if err != nil {
@@ -59,7 +59,7 @@ func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	for _, node := range nodes.Items {
-		value, found := node.Labels["winops/canary/status"]
+		value, found := node.Labels["winops/canary-status"]
 		if !found {
 			//taint and label the node
 			taint := corev1.Taint{
@@ -67,7 +67,7 @@ func (r *CanaryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				Effect: corev1.TaintEffectNoSchedule,
 			}
 			node.Spec.Taints = append(node.Spec.Taints, taint)
-			label := map[string]string{"winops/canary/status": "inprogress"}
+			label := map[string]string{"winops/canary-status": "inprogress"}
 			node.Labels.Merge(label)
 			r.Client.Update(context.Background(), &node)
 
@@ -140,9 +140,9 @@ func createAVPod(suffix string, node corev1.Node, r *CanaryReconciler) *corev1.P
 				},
 			},
 			NodeSelector: map[string]string{
-				"kubernetes.azure.com/os-sku": "Windows2022",
 				"kubernetes.io/hostname":      node.Name,
 			},
+			RestartPolicy: corev1.RestartPolicyOnFailure,
 		},
 	}
 	if err := r.Client.Create(context.Background(), pod); err != nil {
@@ -164,6 +164,12 @@ func createTaintCleanupPod(suffix string, serviceAcount string, node corev1.Node
 				{
 					Name:  "remove-canary-taint",
 					Image: "replace-with-your-image",
+					Env: []corev1.EnvVar{
+						{
+							Name:  "NODE_NAME",
+							Value: node.Name,
+						}
+					}
 				},
 			},
 			Tolerations: []corev1.Toleration{
@@ -174,9 +180,9 @@ func createTaintCleanupPod(suffix string, serviceAcount string, node corev1.Node
 				},
 			},
 			NodeSelector: map[string]string{
-				"kubernetes.azure.com/os-sku": "Windows2022",
 				"kubernetes.io/hostname":      node.Name,
 			},
+			RestartPolicy: corev1.RestartPolicyOnFailure,
 		},
 	}
 	if err := r.Client.Create(context.Background(), pod); err != nil {
