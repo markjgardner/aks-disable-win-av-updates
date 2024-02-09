@@ -3,19 +3,42 @@ kind: ServiceAccount
 metadata:
   name: canary-node-controller
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: canary-node-operator
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: node-taint-label
 rules:
 - apiGroups: [""]
-  resources: ["nodes", "pods"]
-  verbs: ["taint", "label", "get", "list"]
+  resources: ["nodes",]
+  verbs: ["taint", "label"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pods-get-list
+rules:
+- apiGroups: [""]
+  resources: ["pods",]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pods-create
+rules:
+- apiGroups: [""]
+  resources: ["pods",]
+  verbs: ["create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: canary-node-taint-label-binding
+  name: canary-controller-node-taint-label-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -24,15 +47,81 @@ subjects:
 - kind: ServiceAccount
   name: canary-node-controller
 ---
-apiVersion: node.winops/v1alpha1
-kind: Canary
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
 metadata:
-  labels:
-    app.kubernetes.io/name: canary
-    app.kubernetes.io/instance: canary-sample
-    app.kubernetes.io/part-of: operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: operator
-  name: canary-sample
+  name: canary-controller-pod-get-list-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-get-list
+subjects:
+- kind: ServiceAccount
+  name: canary-node-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-operator-node-taint-label-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: node-taint-label
+subjects:
+- kind: ServiceAccount
+  name: canary-node-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-operator-pod-get-list-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-get-list
+subjects:
+- kind: ServiceAccount
+  name: canary-node-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-operator-pod-create-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-create
+subjects:
+- kind: ServiceAccount
+  name: canary-node-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canary-operator-deployment
 spec:
-  serviceAccountName: canary-node-controller
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canary-operator
+  template:
+    metadata:
+      labels:
+        app: canary-operator
+    spec:
+      serviceAccountName: canary-node-operator
+      containers:
+      - name: canary-operator
+        image: ghcr.io/markjgardner/aks-disable-win-av-updates/winnodeoperator:0.2
+        env:
+        - name: CONTROLLER_SERVICE_ACCOUNT
+          value: canary-node-controller
+        - name: CONTROLLER_IMAGE
+          value: ghcr.io/markjgardner/aks-disable-win-av-updates/nodecontroller:0.2.91
+        resources:
+          requests:
+            cpu: 150m
+            memory: 100Mi
+          limits:
+            cpu: 500m
+            memory: 250Mi
