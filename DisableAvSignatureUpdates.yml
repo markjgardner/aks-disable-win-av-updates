@@ -9,13 +9,13 @@ metadata:
   name: canary-node-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: node-taint-label
 rules:
 - apiGroups: [""]
-  resources: ["nodes",]
-  verbs: ["taint", "label"]
+  resources: ["nodes"]
+  verbs: ["taint", "label", "get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -23,7 +23,7 @@ metadata:
   name: pods-get-list
 rules:
 - apiGroups: [""]
-  resources: ["pods",]
+  resources: ["pods"]
   verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -32,7 +32,7 @@ metadata:
   name: pods-create
 rules:
 - apiGroups: [""]
-  resources: ["pods",]
+  resources: ["pods"]
   verbs: ["create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -60,16 +60,17 @@ subjects:
   name: canary-node-controller
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: canary-operator-node-taint-label-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: node-taint-label
 subjects:
 - kind: ServiceAccount
   name: canary-node-operator
+  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -90,7 +91,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: pod-create
+  name: pods-create
 subjects:
 - kind: ServiceAccount
   name: canary-node-operator
@@ -112,7 +113,7 @@ spec:
       serviceAccountName: canary-node-operator
       containers:
       - name: canary-operator
-        image: ghcr.io/markjgardner/aks-disable-win-av-updates/winnodeoperator:0.2
+        image: ghcr.io/markjgardner/aks-disable-win-av-updates/winnodeoperator:0.4
         env:
         - name: CONTROLLER_SERVICE_ACCOUNT
           value: canary-node-controller
