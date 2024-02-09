@@ -15,7 +15,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["nodes"]
-  verbs: ["taint", "label", "get", "list"]
+  verbs: ["taint", "label", "get", "list", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -113,12 +113,12 @@ spec:
       serviceAccountName: canary-node-operator
       containers:
       - name: canary-operator
-        image: ghcr.io/markjgardner/aks-disable-win-av-updates/winnodeoperator:0.4
+        image: ghcr.io/markjgardner/aks-disable-win-av-updates/winnodeoperator:0.7
         env:
         - name: CONTROLLER_SERVICE_ACCOUNT
           value: canary-node-controller
         - name: CONTROLLER_IMAGE
-          value: ghcr.io/markjgardner/aks-disable-win-av-updates/nodecontroller:0.2.91
+          value: ghcr.io/markjgardner/aks-disable-win-av-updates/nodecontroller:0.2.92
         resources:
           requests:
             cpu: 150m

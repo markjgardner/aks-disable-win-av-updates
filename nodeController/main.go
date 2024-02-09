@@ -40,8 +40,18 @@ func main() {
 	nodeName := os.Getenv("NODE_NAME")
 
 	// get all pods with the label app=disable-av-signature-updates on the target node
-	pods, _ := clientset.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{LabelSelector: "app=disable-av-signature-updates", FieldSelector: "spec.nodeName=" + nodeName})
-	fmt.Fprintf(os.Stdout, "Found %d pods on host %s\n", len(pods.Items), nodeName)
+	poll := true
+	var pods *corev1.PodList
+	for poll {
+		pods, _ := clientset.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{LabelSelector: "app=disable-av-signature-updates", FieldSelector: "spec.nodeName=" + nodeName})
+		if len(pods.Items) != 0 {
+			fmt.Fprintf(os.Stdout, "Found %d pods on host %s\n", len(pods.Items), nodeName)
+			poll = false
+		} else {
+			fmt.Fprintf(os.Stdout, "Waiting for pods to be scheduled on host %s\n", nodeName)
+			time.Sleep(5 * time.Second)
+		}
+	}
 
 	if len(pods.Items) == 1 {
 		pod := &pods.Items[0]
