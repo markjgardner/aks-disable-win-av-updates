@@ -1,44 +1,130 @@
-apiVersion: apps/v1
-kind: DaemonSet
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: disable-windowsav
-  labels:
-    k8s-app: disable-windowsav
+  name: canary-node-controller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: canary-node-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-taint-label
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["taint", "label", "get", "list", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pods-get-list
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pods-create
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-controller-node-taint-label-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: node-taint-label
+subjects:
+- kind: ServiceAccount
+  name: canary-node-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-controller-pod-get-list-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-get-list
+subjects:
+- kind: ServiceAccount
+  name: canary-node-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: canary-operator-node-taint-label-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: node-taint-label
+subjects:
+- kind: ServiceAccount
+  name: canary-node-operator
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-operator-pod-get-list-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-get-list
+subjects:
+- kind: ServiceAccount
+  name: canary-node-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-operator-pod-create-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pods-create
+subjects:
+- kind: ServiceAccount
+  name: canary-node-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canary-operator-deployment
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      name: disable-windowsav
+      app: canary-operator
   template:
     metadata:
       labels:
-        name: disable-windowsav
+        app: canary-operator
     spec:
-      nodeSelector:
-        kubernetes.azure.com/os-sku: Windows2022
-      hostNetwork: true
-      initContainers:
-      - name: disable-windowsav
-        image: mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-        command:
-        - powershell.exe
-        args:
-        - -Command
-        - |
-          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v SignatureUpdateInterval /t REG_DWORD /d 0 /f;
-          reg add 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates' /v FallbackOrder /t REG_SZ /d 'FileShares' /f;
-        securityContext:
-          windowsOptions:
-            hostProcess: true
-            runAsUserName: "NT AUTHORITY\\SYSTEM"
+      serviceAccountName: canary-node-operator
       containers:
-      - name: log-regkeys
-        image: mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-        command:
-        - powershell.exe
-        args:
-        - -Command
-        - while ($true) { reg query 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Signature Updates'; start-sleep -s 600; }
-        securityContext:
-          windowsOptions:
-            hostProcess: true
-            runAsUserName: "NT AUTHORITY\\SYSTEM"
+      - name: canary-operator
+        image: ghcr.io/markjgardner/aks-disable-win-av-updates/winnodeoperator:0.7
+        env:
+        - name: CONTROLLER_SERVICE_ACCOUNT
+          value: canary-node-controller
+        - name: CONTROLLER_IMAGE
+          value: ghcr.io/markjgardner/aks-disable-win-av-updates/nodecontroller:0.2.95
+        resources:
+          requests:
+            cpu: 150m
+            memory: 100Mi
+          limits:
+            cpu: 500m
+            memory: 250Mi
+      nodeSelector:
+        kubernetes.io/os: linux
