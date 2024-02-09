@@ -34,34 +34,30 @@ func main() {
 	}
 
 	//Get the current nodename
-	nodeName, err := os.Hostname()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: could not read node hostname")
-	}
+	nodeName := os.Getenv("NODE_NAME")
+	
+	// get all pods with the label app=disable-av-signature-updates on the target node
+	pods, _ := clientset.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{LabelSelector: "app=disable-av-signature-updates", FieldSelector: "spec.nodeName=" + nodeName })
+	fmt.Fprintf(os.Stdout, "Found %d pods on host %s\n", len(pods.Items), nodeName)
+	
+	if len(pods.Items) == 1 {
+		pod := &pods.Items[0]
 
-	waiting := true
-	// get all pods with the name "canary"
-	for waiting {
-		pods, _ := clientset.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{LabelSelector: "winops/canary-status=inprogress", FieldSelector: "spec.nodeName=" + nodeName})
-
-		if pods == nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error: no canary pods are running on this node")
+		waiting := true
+		// wait for the pod to complete
+		for waiting {
+			if pod.Status.Phase == "Succeeded" {
+				// remove the taint and label from the node
+				node, _ := clientset.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+				node.Spec.Taints = removeTaint(node.Spec.Taints, "canary")
+				node.Labels["winops/canary-status"] = "complete"
+				clientset.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{})
+				waiting = false
+			} else {
+				pod, _ = clientset.CoreV1().Pods("default").Get(context.Background(), pod.Name, metav1.GetOptions{})
+			}
 		}
-
-		// if there is more than one pod in the list throw an error
-		if len(pods.Items) > 1 {
-			_, _ = fmt.Fprintf(os.Stderr, "Error: more than one canary pod is running on this node")
-		}
-
-		pod := pods.Items[0]
-
-		if pod.Status.Phase == "Succeeded" {
-			// remove the taint and label from the node
-			node, _ := clientset.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-			node.Spec.Taints = removeTaint(node.Spec.Taints, "canary")
-			node.Labels["winops/canary-status"] = "complete"
-			clientset.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{})
-			waiting = false
-		}
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "Error: more than one canary pod found")
 	}
 }
