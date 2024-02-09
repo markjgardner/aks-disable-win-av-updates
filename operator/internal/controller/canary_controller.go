@@ -110,7 +110,7 @@ func createAVPod(suffix string, node corev1.Node, r *CanaryReconciler) *corev1.P
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "disable-av-signature-updates",
+			Name:      "disable-av-signature-updates"+ suffix,
 			Namespace: "default",
 		},
 		Labels: map[string]string{
@@ -119,7 +119,7 @@ func createAVPod(suffix string, node corev1.Node, r *CanaryReconciler) *corev1.P
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:    "disable-av-signature-updates-" + suffix,
+					Name:    "disable-av-signature-updates",
 					Image:   "mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0",
 					Command: []string{"powershell"},
 					Args: []string{"reg add 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Defender\\Signature Updates' /v FallbackOrder /t REG_SZ /d 'FileShares' /f;",
